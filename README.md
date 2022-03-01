@@ -6,9 +6,9 @@ this repo contains scripts in the context of machine learning and deep learning.
 for the sake of getting to know bazel and dazel, this repo is using it. \
 
 for example:
-´´´
+```
 bazel run image_tagger:main -- -list_classes
-´´´
+```
 
 https://docs.bazel.build/versions/main/be/python.html \
 https://github.com/nadirizr/dazel \
