@@ -33,6 +33,9 @@ logging.basicConfig(
 
 class ImageTagger():
     def __init__(self) -> None:
+
+        # see python version
+        logging.info(os.system("python -V"))
     
         # params
         self.model_name = 'yolov5s'
