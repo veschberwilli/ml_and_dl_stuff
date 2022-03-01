@@ -40,9 +40,7 @@ class ImageTagger():
         self.path_to_imgs = os.path.join('pics')
         self.supported_img_formats = ['jpg']
         self.confidence_th = 0.5
-
-        # start
-        logging.info(f"Start Image Tagger...")
+        self.path_to_imgs_infer = os.path.join('pics_infer')
 
         # create db connection
         engine = db.create_engine('sqlite:///image_tags.sqlite')
@@ -70,9 +68,17 @@ class ImageTagger():
         # ++++
         # QUERY BASED ON SEARCH TAG
         # ++++
-        if self.config["query_tag"]:
-            # search_tag=
-            self.query_for_search_tag()
+        if len(self.config["query_tag"]) > 0:
+            self.query_for_search_tag(search_tag=self.config["query_tag"])
+        else:
+            logging.info('No Tags Provided. Exit.')
+
+        # ++++
+        # LIST CLASSES
+        # ++++
+        if self.config["list_classes"]:
+            self.load_model()
+            self.list_classes()
 
     def load_model(self) -> None:
         # load model
@@ -82,7 +88,7 @@ class ImageTagger():
     def get_images(self) -> None:
         # get images
         logging.info(f"Base Dir: {os.getcwd()}")
-        logging.info(f"Locking for images in {self.path_to_imgs}")
+        logging.info(f"Looking for Images in {self.path_to_imgs}")
         # TODO: supported_img_formats
         self.imgs = glob.glob(os.path.join(self.path_to_imgs, '*.jpg'))
         self.imgs_names = self.imgs.copy()
@@ -97,11 +103,12 @@ class ImageTagger():
 
         # Results
         #results.print() # prints an overview
-        self.results.save()  # or .show() # saves images with detections
+        # saves images with detections
+        self.results.save(self.path_to_imgs_infer)
 
     def write_tags_to_db(self) -> None:
         # init Dataframe
-        self.df = pd.DataFrame(columns=['path', 'img_name', 'detection'])
+        self.df = pd.DataFrame(columns=['path', 'img_name', 'path_detections', 'detection'])
 
         # iterate over imgs
         for idx, img in enumerate(self.imgs_names):
@@ -116,7 +123,8 @@ class ImageTagger():
                 data = {
                     'path': full_path,
                     'img_name': basename,
-                    'detection': detection
+                    'detection': detection,
+                    'path_detections': os.path.join(self.path_to_imgs_infer, basename)
                 }
                 self.df = self.df.append(data, ignore_index=True)
 
@@ -124,19 +132,22 @@ class ImageTagger():
         # TODO: not replace but complement
         self.df.to_sql('tags', self.connection, if_exists='replace')
 
-
-    def query_for_search_tag(self, search_tag='horse') -> None:
+    def query_for_search_tag(self, search_tag=['horse']) -> None:
         # look for specific tag
+        logging.info(f"Searching for Tags: {search_tag}")
         
         # read db
         tags = pd.read_sql_table('tags', self.connection)
 
-        # list query results
-        logging.info(f"Searching for Tag: {search_tag}")
+        # get results based on tags
+        results = tags[tags['detection'].isin(search_tag)][['path', 'path_detections']].drop_duplicates()
 
-        results = tags[tags['detection'] == search_tag]['path']
-        for res in results:
-            logging.info(f"{res}")
+        # show results
+        for _, res in results.iterrows():
+            logging.info(f"{res.path}, {res.path_detections}")
+
+    def list_classes(self) -> None:
+        logging.info(self.model.names)
 
     def run_parser(self):
         """
@@ -151,12 +162,14 @@ class ImageTagger():
 
         control_setting = parser.add_argument_group("Parameters to Control the Steps")
         control_setting.add_argument("-run_inference", action="store_true", help="option to run inference.")
-        control_setting.add_argument("-query_tag", action="store_true", help="option to query for one or more tags.")
+        control_setting.add_argument("-list_classes", action="store_true", help="option to list available classes.")
+        control_setting.add_argument("-query_tag", nargs="+", default=[], help="option to query for one or more tags.")
 
         # read args
         args = parser.parse_args()
         self.config = {}
         self.config["run_inference"] = getattr(args, "run_inference")
+        self.config["list_classes"] = getattr(args, "list_classes")
         self.config["query_tag"] = getattr(args, "query_tag")
 
 
